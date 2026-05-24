@@ -4,6 +4,8 @@ Este documento é o **hub da trilha CasaOS** — painel web open-source para ger
 
 **Site oficial:** https://casaos.zimaspace.com/
 
+Cada guia em `casaos/` explica **qual problema resolve**, **por que o fluxo funciona** e **como validar o resultado** — não apenas listas de comandos.
+
 ---
 
 ## O que é o CasaOS?

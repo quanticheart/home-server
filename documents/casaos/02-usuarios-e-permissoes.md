@@ -46,26 +46,42 @@ O administrador do painel **não substitui** usuários Linux para compartilhamen
 
 ## 3. Criar usuários Linux
 
+**Por que criar usuários Linux separados:** o Samba, SFTP e permissões de pasta no Ubuntu usam contas do **sistema operacional**, não a conta do painel CasaOS. Cada pessoa (ou função) na rede deve ter um usuário Linux para autenticar e para definir **quais pastas** pode ler ou gravar.
+
 ### 3.1 Usuário com login interativo
+
+Use este fluxo para quem acessará pastas pela rede (Mac, Windows, celular) ou eventualmente por SSH.
 
 ```bash
 sudo adduser familia
 ```
 
-Informar senha forte quando solicitado.
+O assistente cria a pasta `/home/familia` e pede senha. Essa senha Linux será reutilizada depois no **Samba** (`smbpasswd`) para acesso às pastas compartilhadas.
+
+**Resultado esperado:** usuário listado em `cat /etc/passwd | grep familia`.
 
 ### 3.2 Usuário apenas para arquivos (sem shell)
+
+Para contas que **só** enviam ou baixam arquivos (SFTP), sem poder abrir terminal no servidor — reduz risco se a senha vazar.
 
 ```bash
 sudo adduser --disabled-password --shell /usr/sbin/nologin arquivo_ro
 sudo passwd arquivo_ro
 ```
 
+**O que muda:** `nologin` impede sessão SSH interativa; SFTP ainda pode ser configurado com chroot na seção 6.
+
 ---
 
 ## 4. Grupos e permissões POSIX
 
+**Problema que resolve:** várias pessoas precisam gravar na mesma pasta (`compartilhado`), mas **não** devem acessar `privado` ou `convidado` de outro usuário.
+
+**Como funciona:** no Linux, cada arquivo tem dono, grupo e permissões (`rwx`). Grupos permitem que **vários usuários** compartilhem acesso sem dar acesso ao sistema inteiro.
+
 ### 4.1 Criar grupos
+
+Grupos são “etiquetas” de permissão — ex.: todos da família no grupo `familia`.
 
 ```bash
 sudo groupadd familia
@@ -74,12 +90,18 @@ sudo groupadd convidados
 
 ### 4.2 Adicionar usuários aos grupos
 
+Vincula a conta Linux ao grupo para herdar permissões das pastas configuradas para esse grupo.
+
 ```bash
 sudo usermod -aG familia familia
 sudo usermod -aG convidados convidado
 ```
 
+> Novas sessões SSH/Samba passam a enxergar o grupo; em caso de dúvida, desconectar e conectar de novo.
+
 ### 4.3 Permissões nas pastas
+
+Os comandos abaixo definem **quem é dono** de cada pasta e se o grupo pode ler/gravar. Rode-os após criar a estrutura em `/srv/casaos/`.
 
 ```bash
 sudo mkdir -p /srv/casaos/{compartilhado,convidado,fotos,privado}
@@ -111,7 +133,9 @@ Deve retornar **Permission denied** se o convidado não pertence ao grupo `famil
 
 ## 5. Senha Samba (obrigatória para SMB)
 
-Usuários que acessam pastas via Windows/macOS/Android/iOS precisam de senha Samba vinculada à conta Linux:
+**Problema que resolve:** o Windows, Mac e apps móveis usam o protocolo **SMB** para “pastas de rede”. O Samba exige uma senha de rede ligada ao usuário Linux — a senha do Ubuntu **não** é ativada automaticamente para SMB.
+
+**Fluxo:** instalar o serviço Samba → registrar senha por usuário → (depois) definir compartilhamentos no `smb.conf` no guia de pastas.
 
 ```bash
 sudo apt install -y samba
@@ -119,21 +143,27 @@ sudo smbpasswd -a familia
 sudo smbpasswd -a convidado
 ```
 
-Reiniciar Samba após configurar compartilhamentos em [03-pastas-rede-e-mobile.md](03-pastas-rede-e-mobile.md):
+Cada `smbpasswd -a` pede uma senha de rede; pode ser igual à do Linux, mas o ideal é senhas fortes e distintas para serviços críticos.
+
+Após configurar os compartilhamentos em [03-pastas-rede-e-mobile.md](03-pastas-rede-e-mobile.md), reinicie o Samba para aplicar alterações:
 
 ```bash
 sudo systemctl restart smbd
 ```
 
+**Resultado esperado:** ao conectar de outro PC com `familia` + senha Samba, a pasta compartilhada abre sem “acesso negado”.
+
 ---
 
 ## 6. SFTP com acesso restrito (chroot)
 
-Para permitir apenas upload/download em uma pasta, sem shell no servidor.
+**Problema que resolve:** permitir que alguém envie arquivos pela internet (SFTP) **sem** poder navegar pelo servidor, instalar nada ou ver `/srv/casaos/compartilhado`.
+
+**Como funciona:** o SSH “prende” o usuário dentro de uma pasta (chroot). Ele só vê o que está abaixo desse diretório — útil para `convidado` ou prestadores de serviço.
 
 ### 6.1 Estrutura de diretórios
 
-O diretório de chroot deve pertencer a `root` e não ser gravável pelo usuário:
+O OpenSSH exige que a **raiz do chroot** pertença ao `root` e não seja gravável pelo usuário; a subpasta `uploads` sim pode ser dele.
 
 ```bash
 sudo mkdir -p /srv/casaos/convidado/uploads
@@ -172,6 +202,8 @@ O usuário deve ver apenas o conteúdo dentro de `/srv/casaos/convidado` (raiz v
 ---
 
 ## 7. ACLs (controle fino opcional)
+
+**Quando usar:** um usuário precisa de acesso a subpasta específica sem entrar no grupo da pasta pai — cenário mais raro que grupos POSIX.
 
 ```bash
 sudo apt install -y acl

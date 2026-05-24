@@ -4,6 +4,8 @@ Este documento trata do **Ubuntu Server** (o nome do arquivo, `UBUNTO_SERVER.md`
 
 **Versão de referência:** Ubuntu Server 24.04 LTS (Noble Numbat).
 
+Os tutoriais em [`ubuntu/`](ubuntu/) seguem formato didático: objetivo do passo, contexto, comandos (quando houver) e resultado esperado.
+
 ---
 
 ## O que é um servidor caseiro?

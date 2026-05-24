@@ -35,12 +35,16 @@ Configurar armazenamento em `/srv/casaos/`, expor compartilhamentos SMB na LAN e
 
 ### 1.2 Comandos
 
+**O que este bloco faz:** cria a árvore de pastas no disco do servidor e define **quem pode escrever** em cada uma. Sem isso, o Samba até monta a pasta na rede, mas gravações podem falhar com “permissão negada”.
+
 ```bash
 sudo mkdir -p /srv/casaos/{compartilhado,fotos,convidado,privado}
 sudo chown -R $USER:$USER /srv/casaos/compartilhado /srv/casaos/fotos
 sudo chown convidado:convidado /srv/casaos/convidado
 sudo chmod 700 /srv/casaos/privado
 ```
+
+**Resultado esperado:** `ls -la /srv/casaos` mostra donos diferentes por pasta; `privado` só acessível pelo root/admin.
 
 ### 1.3 App FILES no CasaOS
 
@@ -50,9 +54,13 @@ No painel web CasaOS, abrir **FILES** para navegar, criar subpastas e enviar arq
 
 ## 2. Compartilhar na rede com Samba (SMB)
 
-O protocolo **SMB/CIFS** é o mais compatível com Mac, Windows e apps móveis nativos.
+**Problema que resolve:** fazer o servidor aparecer como **pasta de rede** no Mac, Windows e celular — sem instalar app extra em muitos casos.
+
+**Por que SMB:** é o protocolo que o Explorer, o Finder e o app Arquivos (iOS) entendem nativamente para “servidor de arquivos na LAN”.
 
 ### 2.1 Instalar Samba
+
+O pacote `samba` instala o daemon `smbd`, que escuta conexões de rede e aplica as regras do arquivo de configuração.
 
 ```bash
 sudo apt update
@@ -61,7 +69,9 @@ sudo apt install -y samba
 
 ### 2.2 Configurar compartilhamentos
 
-Fazer backup e editar `/etc/samba/smb.conf`. Adicionar ao final:
+Cada bloco `[nome]` em `smb.conf` vira um **share** visível na rede (`\\IP\compartilhado`). O `valid users` limita **quem** pode entrar; o `path` define **qual pasta** no disco é exposta.
+
+Fazer backup de `/etc/samba/smb.conf` e editar o arquivo. Adicionar ao final:
 
 ```ini
 [compartilhado]
@@ -88,6 +98,8 @@ Fazer backup e editar `/etc/samba/smb.conf`. Adicionar ao final:
 
 ### 2.3 Senhas Samba
 
+O Linux e o Samba usam a **mesma conta** (`familia`), mas senhas de rede são registradas à parte. Sem `smbpasswd`, o cliente pede senha e sempre falha.
+
 ```bash
 sudo smbpasswd -a familia
 sudo smbpasswd -a convidado
@@ -97,11 +109,15 @@ sudo smbpasswd -e convidado
 
 ### 2.4 Ativar e testar
 
+Estes comandos garantem que o Samba inicia com o sistema, recarrega a config e libera o firewall para clientes na LAN.
+
 ```bash
 sudo systemctl enable smbd nmbd
 sudo systemctl restart smbd
 sudo ufw allow samba
 ```
+
+**Resultado esperado:** de outro PC, `\\192.168.1.100\compartilhado` (Windows) ou `smb://192.168.1.100/compartilhado` (Mac) pede login e abre a pasta.
 
 Teste local:
 
@@ -112,6 +128,10 @@ smbclient -L //localhost -U familia
 ---
 
 ## 3. Acesso no macOS (Finder)
+
+**Contexto:** após Samba configurado (seção 2), o Mac trata o servidor como **volume de rede**. Não é necessário app extra — o Finder fala SMB nativamente.
+
+**O que será feito:** montar `compartilhado` na barra lateral para arrastar arquivos como em um pendrive na rede.
 
 1. Abrir **Finder**
 2. Menu **Ir** → **Conectar ao Servidor** (ou `Cmd + K`)
@@ -128,6 +148,8 @@ smbclient -L //localhost -U familia
 
 ## 4. Acesso no Windows (Explorador de Arquivos)
 
+**Contexto:** o Windows usa o protocolo SMB com caminho `\\servidor\share`. Credenciais são as do usuário Linux com senha registrada no `smbpasswd`.
+
 1. Abrir **Explorador de Arquivos**
 2. Na barra de endereço, digitar: `\\192.168.1.100\compartilhado`
 3. Pressionar Enter
@@ -141,9 +163,11 @@ smbclient -L //localhost -U familia
 
 ## 5. Transferência remota (SCP, rsync, SFTP)
 
-Útil para administradores ou quando SMB não está disponível.
+**Quando usar em vez de SMB:** administração pelo mesmo SSH do servidor, scripts automatizados, ou redes onde SMB está bloqueado. **Não substitui** o acesso fácil no celular — para isso, preferir SMB (seções 7–8) ou Nextcloud.
 
 ### 5.1 SCP — arquivo único
+
+Cópia pontual e criptografada — um arquivo por comando, ou pasta com `-r`.
 
 **Enviar para o servidor:**
 
@@ -179,11 +203,15 @@ Arrastar arquivos entre painéis local e remoto.
 
 ## 6. Usuário com acesso somente a uma pasta
 
+**Problema que resolve:** oferecer pasta para visitante, freelancer ou familiar sem permitir ver `compartilhado`, `fotos` ou arquivos do sistema.
+
+**Estratégia:** combinar (1) usuário Linux dedicado, (2) dono da pasta só esse usuário, (3) share Samba com `valid users` apontando só para ele. Assim, mesmo que saiba o IP do servidor, não autentica em outros shares.
+
 Exemplo: `convidado` acessa **apenas** `/srv/casaos/convidado`.
 
 ### Passo a passo
 
-1. Criar usuário: `sudo adduser convidado`
+1. Criar usuário: `sudo adduser convidado` — identidade de rede separada
 2. Ajustar dono: `sudo chown -R convidado:convidado /srv/casaos/convidado`
 3. **Não** adicionar `convidado` ao grupo `familia`
 4. No `smb.conf`, share `[convidado]` com `valid users = convidado` e `path` apontando somente para essa pasta
@@ -198,9 +226,13 @@ Para SFTP restrito, ver [02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.m
 
 ## 7. Android — acesso à pasta compartilhada
 
-> **Requisito:** telefone na mesma rede Wi-Fi que o servidor (para SMB direto). Fora de casa, usar [06-acesso-pela-internet.md](06-acesso-pela-internet.md) (VPN ou Nextcloud).
+**Objetivo:** abrir, enviar e baixar arquivos da pasta `compartilhado` no celular, como se fosse um disco na nuvem local.
+
+> **Requisito:** telefone na **mesma rede Wi-Fi** que o servidor (para SMB direto). Rede de convidados isolada no roteador pode bloquear — usar Wi-Fi principal. Fora de casa: [06-acesso-pela-internet.md](06-acesso-pela-internet.md) (Tailscale + SMB ou app Nextcloud).
 
 ### 7.1 Método A — SMB com Solid Explorer (recomendado)
+
+**Por que este app:** o Android não inclui cliente SMB completo em todas as versões. Solid Explorer adiciona servidor LAN/SMB de forma estável.
 
 1. Instalar [Solid Explorer](https://play.google.com/store/apps/details?id=pl.solidexplorer2) (ou similar: MiXplorer, X-plore)
 2. Abrir o app → menu **≡** → **Armazenamento na nuvem** ou **Rede**

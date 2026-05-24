@@ -26,27 +26,41 @@ Este guia descreve como criar usuários no Ubuntu Server, atribuir permissões p
 
 ## 2. Criar usuários
 
+**Objetivo desta seção:** cada serviço ou pessoa na rede usa uma **identidade própria** no servidor. Assim, se a senha do usuário de backup vazar, o atacante não ganha automaticamente acesso à pasta de sites ou jogos.
+
 ### 2.1 Usuário padrão interativo
+
+O comando `adduser` cria conta Linux, pasta em `/home` e permissões básicas — base para Samba, SFTP ou SSH.
 
 ```bash
 sudo adduser backupuser
 ```
 
-O assistente solicita senha e dados opcionais. Para usuários de serviço, utilizar senha forte.
+O assistente solicita senha e dados opcionais. Para contas de serviço, utilizar senha forte e anotar qual pasta essa conta poderá usar (ex.: só `/srv/backup`).
+
+**Resultado esperado:** login possível com `su - backupuser` (teste) ou listagem em `id backupuser`.
 
 ### 2.2 Usuário sem shell interativo (opcional)
 
-Para contas que só transferem arquivos:
+Para contas que **apenas** transferem arquivos por SFTP, sem abrir terminal no servidor — reduz superfície de ataque.
 
 ```bash
 sudo adduser --disabled-password --shell /usr/sbin/nologin servicoftp
 ```
 
+Depois define-se senha com `sudo passwd servicoftp` se for usar SFTP com senha.
+
 ---
 
 ## 3. Grupos e permissões POSIX
 
+**Problema que resolve:** o usuário `backupuser` deve gravar em `/srv/backup`, mas **não** listar ou alterar `/srv/web`. Grupos e `chmod`/`chown` implementam essa separação no Linux.
+
+**Conceito:** pasta com dono `root` e grupo `backup` + modo `2770` = membros do grupo `backup` leem e escrevem; outros usuários do sistema, em regra, não.
+
 ### 3.1 Criar grupo por serviço
+
+Cada “tipo” de dado no servidor ganha um grupo: backup, web, jogos.
 
 ```bash
 sudo groupadd backup
@@ -56,6 +70,8 @@ sudo groupadd games
 
 ### 3.2 Adicionar usuários aos grupos
 
+Associa cada conta ao grupo correto. Sem isso, `chown root:backup` na pasta não beneficiará o usuário.
+
 ```bash
 sudo usermod -aG backup backupuser
 sudo usermod -aG webdev webuser
@@ -63,6 +79,8 @@ sudo usermod -aG games gameuser
 ```
 
 ### 3.3 Ajustar dono e permissões das pastas
+
+Execute após criar `/srv/web`, `/srv/games`, `/srv/backup`. Cada bloco alinha pasta, dono e modo de acesso ao modelo da tabela da seção 1.
 
 ```bash
 # Backup — grupo backup com escrita
@@ -98,7 +116,7 @@ sudo -u backupuser ls /srv/web
 
 ## 4. ACLs (controle fino)
 
-Quando permissões POSIX não são suficientes:
+**Quando usar:** permissões de grupo/dono não bastam — por exemplo, um usuário precisa gravar em uma subpasta sem pertencer ao grupo da pasta pai. ACLs definem regras por usuário/arquivo.
 
 ```bash
 sudo apt install -y acl
@@ -118,11 +136,15 @@ getfacl /srv/backup/documentos
 
 ## 5. SFTP com chroot — acesso somente à pasta backup
 
-Abordagem **recomendada** para restringir um usuário à pasta de backup via SFTP, sem acesso ao restante do sistema.
+**Problema que resolve:** permitir upload/download na pasta de backup **sem** dar shell SSH nem leitura de `/srv/web` ou `/home`.
+
+**Como funciona:** o OpenSSH, ao detectar o usuário `backupuser`, aplica `ChrootDirectory` — a sessão SFTP enxerga apenas aquele diretório como “raiz” (`/`).
+
+Abordagem **recomendada** para restringir acesso à pasta de backup via SFTP.
 
 ### 5.1 Estrutura de diretórios para chroot
 
-O diretório de chroot deve ser de propriedade de `root` e não gravável pelo usuário:
+Requisito de segurança do OpenSSH: a pasta do chroot pertence ao `root` e não pode ser gravável pelo usuário restrito. Arquivos vão em subpastas com dono do usuário.
 
 ```bash
 sudo chown root:root /srv/backup

@@ -25,11 +25,19 @@ Este repositório utiliza o seguinte layout como referência em todos os guias:
 
 ### 1.1 Criar as pastas
 
+**Por que `/srv`:** no Linux, `/srv` é a convenção para **dados de serviços** (sites, jogos, backups) separados do sistema em `/`. Facilita backups, permissões e expansão de disco montado só em `/srv`.
+
+O comando abaixo cria as quatro pastas de uma vez; `-p` evita erro se alguma já existir.
+
 ```bash
 sudo mkdir -p /srv/{web,games,casaos,backup}
 ```
 
+**Resultado esperado:** `ls /srv` lista `web`, `games`, `casaos`, `backup`.
+
 ### 1.2 Permissões iniciais
+
+Antes de criar usuários por serviço ([05-usuarios-e-permissoes.md](05-usuarios-e-permissoes.md)), define-se um dono inicial. O administrador (`$USER`) controla web/jogos/casaos; `backup` fica mais restrito desde o início.
 
 ```bash
 # Dono administrativo; ajustar por serviço depois
@@ -59,7 +67,13 @@ Substituir `usuario`, `192.168.1.100` e caminhos pelos valores reais do ambiente
 
 ## 3. Comandos gerais de upload e download
 
+Esta seção cobre transferência **pontual** pela rede, usando a mesma autenticação SSH da administração. Útil para enviar um site, um mod de jogo ou copiar backup sem montar pasta de rede no sistema operacional.
+
+**Quando usar cada ferramenta:** `scp` para poucos arquivos; `rsync` para pastas grandes ou atualizações repetidas; SFTP quando se prefere interface gráfica (FileZilla).
+
 ### 3.1 SCP — arquivo único
+
+O `scp` copia arquivos por cima do SSH — criptografado e simples, sem configurar Samba.
 
 **Enviar para o servidor:**
 
@@ -81,6 +95,8 @@ scp -r ./meu-site/ usuario@192.168.1.100:/srv/web/
 
 ### 3.2 rsync — sincronização
 
+**Quando usar:** copiar muitos arquivos ou atualizar um site várias vezes. O `rsync` envia só o que mudou desde a última cópia — mais rápido que `scp` em pastas grandes.
+
 **Enviar site para o servidor:**
 
 ```bash
@@ -95,11 +111,13 @@ rsync -avz usuario@192.168.1.100:/srv/backup/ ./backup-local/
 
 ### 3.3 SFTP (modo interativo)
 
+**O que é:** SFTP roda sobre SSH e permite navegar pastas no servidor como se fossem locais. Útil para testar permissões ou enviar arquivos sem montar pasta de rede.
+
 ```bash
 sftp usuario@192.168.1.100
 ```
 
-Comandos dentro do SFTP:
+Dentro da sessão SFTP, estes comandos manipulam arquivos remotos:
 
 ```
 cd /srv/backup
@@ -127,12 +145,25 @@ Hospedar aplicações PHP com banco MariaDB/MySQL, acessíveis na rede local via
 
 ### 4.2 Instalar stack LAMP simplificado (Nginx + PHP-FPM + MariaDB)
 
+**O que este passo instala:**
+
+| Pacote | Função |
+|--------|--------|
+| **nginx** | Servidor web — responde HTTP na porta 80 |
+| **mariadb-server** | Banco de dados (compatível com MySQL) |
+| **php-fpm** | Executa código PHP fora do Nginx |
+| **php-mysql** | Ligação entre PHP e MariaDB |
+
 ```bash
 sudo apt update
 sudo apt install -y nginx mariadb-server php-fpm php-mysql
 ```
 
+**Resultado esperado:** `systemctl status nginx` e `php8.3-fpm` (versão pode variar) ativos.
+
 ### 4.3 Estrutura do site
+
+Separar a pasta pública (`public`) do restante do projeto evita expor arquivos de configuração na web. O grupo `www-data` é o usuário sob o qual o Nginx/PHP leem arquivos.
 
 ```bash
 sudo mkdir -p /srv/web/meusite/public
@@ -147,7 +178,9 @@ rsync -avz ./projeto/ usuario@192.168.1.100:/srv/web/meusite/public/
 
 ### 4.4 Configurar Nginx (exemplo)
 
-Criar `/etc/nginx/sites-available/meusite`:
+**Problema que resolve:** o Nginx precisa saber qual pasta servir e como encaminhar arquivos `.php` para o PHP-FPM.
+
+Criar o arquivo de site em `/etc/nginx/sites-available/meusite` (substituir `meusite` pelo nome desejado):
 
 ```nginx
 server {
@@ -167,13 +200,15 @@ server {
 }
 ```
 
-Ativar e testar:
+O link simbólico **ativa** o site; `nginx -t` valida sintaxe antes de aplicar (evita derrubar o servidor com erro de config).
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/meusite /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+**Resultado esperado:** `nginx -t` exibe `syntax is ok`; no navegador da LAN, `http://IP_DO_SERVIDOR` mostra a página (ou lista de diretório se não houver `index.php`).
 
 ### 4.5 Acesso
 
@@ -182,12 +217,16 @@ sudo systemctl reload nginx
 
 ### 4.6 Banco de dados
 
+**Fluxo:** endurecer instalação padrão do MariaDB → criar banco e usuário só para esta aplicação (não usar `root` no PHP).
+
 ```bash
 sudo mysql_secure_installation
 sudo mysql -e "CREATE DATABASE meusite; CREATE USER 'meusite'@'localhost' IDENTIFIED BY 'senha_forte'; GRANT ALL ON meusite.* TO 'meusite'@'localhost';"
 ```
 
-> Utilizar senhas fortes e nunca expor a porta 3306 na internet sem necessidade.
+Substituir `senha_forte` por senha real. O usuário `'meusite'@'localhost'` só conecta **do próprio servidor** — adequado para PHP na mesma máquina.
+
+> Nunca expor a porta 3306 na internet sem necessidade e firewall restritivo.
 
 ---
 
@@ -199,14 +238,18 @@ Executar binários de servidor de jogos (ex.: Minecraft Java) com arquivos e mun
 
 ### 5.2 Preparar pasta
 
+O servidor de jogo grava mundos, mods e logs nesta pasta. Um usuário dedicado (`gameuser`) limita danos se o serviço do jogo for comprometido.
+
 ```bash
 sudo mkdir -p /srv/games/minecraft
 sudo chown -R gameuser:games /srv/games/minecraft
 ```
 
-> Criar usuário `gameuser` em [05-usuarios-e-permissoes.md](05-usuarios-e-permissoes.md).
+> Criar usuário `gameuser` conforme [05-usuarios-e-permissoes.md](05-usuarios-e-permissoes.md).
 
 ### 5.3 Enviar arquivos do servidor de jogo
+
+Copiar o `.jar` (ou pacote do jogo) do PC de desenvolvimento para o servidor — mesmo fluxo de deploy de site, pasta de destino diferente.
 
 ```bash
 scp server.jar usuario@192.168.1.100:/srv/games/minecraft/
@@ -220,11 +263,15 @@ rsync -avz ./minecraft-server/ usuario@192.168.1.100:/srv/games/minecraft/
 
 ### 5.4 Firewall — liberar porta do jogo
 
-Exemplo Minecraft (porta 25565):
+**Por que:** o UFW bloqueia conexões entrantes por padrão. Jogadores na rede (ou na internet, se houver port forward) precisam alcançar a **porta TCP** que o jogo escuta.
+
+Exemplo Minecraft Java (porta **25565**):
 
 ```bash
 sudo ufw allow 25565/tcp
 ```
+
+**Resultado esperado:** `sudo ufw status` lista a regra; cliente do jogo conecta em `IP:25565`.
 
 ### 5.5 Executar como serviço (systemd, exemplo)
 
@@ -260,6 +307,8 @@ Armazenar arquivos para backup e acesso tipo “nuvem privada”, sem executar s
 
 ### 7.2 Estrutura
 
+Organizar subpastas facilita backups por tipo (documentos, fotos). Permissões iniciais restritas; usuário `backupuser` recebe acesso na seção de permissões.
+
 ```bash
 sudo mkdir -p /srv/backup/{documentos,fotos,arquivos}
 sudo chown root:root /srv/backup
@@ -268,15 +317,21 @@ sudo chmod 755 /srv/backup
 
 ### 7.3 Opção A — SFTP (simples, seguro)
 
-Upload/download via `scp`, `rsync` ou FileZilla para `/srv/backup/`. Restrição por usuário em [05-usuarios-e-permissoes.md](05-usuarios-e-permissoes.md).
+**Ideal para:** quem já usa SSH e quer criptografia sem configurar Samba. Upload/download via `scp`, `rsync` ou FileZilla em `/srv/backup/`.
+
+Restrição por usuário (só esta pasta): [05-usuarios-e-permissoes.md](05-usuarios-e-permissoes.md).
 
 ### 7.4 Opção B — Samba (pastas de rede)
+
+**Ideal para:** Mac e Windows montarem `/srv/backup` como disco de rede — mesma ideia das pastas CasaOS, outro caminho no disco.
 
 ```bash
 sudo apt install -y samba
 ```
 
-Editar `/etc/smb.conf` — exemplo de compartilhamento:
+O bloco abaixo define um share chamado `backup` visível na rede. Apenas `backupuser` autentica (`valid users`).
+
+Editar `/etc/smb.conf` — adicionar ao final:
 
 ```ini
 [backup]

@@ -14,13 +14,15 @@ Este guia descreve como conectar-se ao Ubuntu Server a partir de outro computado
 
 ## 1. Obter o endereço IP do servidor
 
-No servidor (console local ou já conectado):
+**Por que isso vem primeiro:** o SSH conecta por **endereço IP** (ou hostname) na rede local. Sem o IP correto, o cliente não encontra o servidor.
+
+No servidor (console local com monitor, ou sessão já aberta):
 
 ```bash
 hostname -I
 ```
 
-O primeiro endereço listado em geral é o IPv4 na LAN (formato `192.168.x.x` ou `10.x.x.x`).
+O comando pergunta ao sistema “quais IPs estou usando agora?”. O primeiro endereço listado em geral é o IPv4 na LAN (`192.168.x.x` ou `10.x.x.x`) — é esse valor que entra em `ssh usuario@192.168.1.100`.
 
 Alternativas:
 
@@ -38,13 +40,15 @@ Alternativas:
 
 ### 2.2 Conectar via SSH
 
-Substituir `usuario` pelo nome de usuário criado na instalação e `192.168.1.100` pelo IP real do servidor:
+**O que acontece:** o Mac abre um canal criptografado até o servidor. Tudo digitado depois roda **no Ubuntu**, não no Mac — ideal para administrar o servidor sem monitor dedicado.
+
+Substituir `usuario` pelo nome criado na instalação do Ubuntu e `192.168.1.100` pelo IP da seção 1:
 
 ```bash
 ssh usuario@192.168.1.100
 ```
 
-Na primeira conexão, aparece uma mensagem sobre autenticidade do host:
+Na **primeira** conexão, o SSH exibe o “fingerprint” do servidor — mecanismo de segurança para detectar servidor falso na rede. Após aceitar uma vez, o Mac lembra dessa máquina.
 
 ```
 The authenticity of host '192.168.1.100' can't be established.
@@ -56,19 +60,25 @@ Digitar `yes` e pressionar Enter. Em seguida, informar a senha do usuário (os c
 
 ### 2.3 Autenticação por chave SSH (recomendado)
 
+**Problema que resolve:** senhas digitadas repetidamente e risco de brute force na porta SSH. Com chave, só quem tem o arquivo privado no Mac autentica.
+
+**Fluxo:** gerar par de chaves no Mac → copiar chave **pública** para o servidor → login passa a usar criptografia assimétrica.
+
 No Mac, gerar chave (se ainda não existir):
 
 ```bash
 ssh-keygen -t ed25519 -C "macbook-homeserver"
 ```
 
-Copiar a chave pública para o servidor:
+Aceitar o caminho padrão (`Enter`) e opcionalmente definir frase secreta na chave.
+
+Copiar a chave pública para o servidor (pedirá senha **uma última vez**):
 
 ```bash
 ssh-copy-id usuario@192.168.1.100
 ```
 
-Após isso, o login pode ocorrer sem senha.
+**Resultado esperado:** `ssh usuario@IP` conecta sem pedir senha do usuário (pode pedir frase da chave, se configurada).
 
 ### 2.4 Atalho com arquivo de configuração
 

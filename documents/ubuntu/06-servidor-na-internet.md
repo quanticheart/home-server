@@ -45,6 +45,10 @@ A VPN cria um túnel criptografado entre dispositivos autorizados e o servidor, 
 
 ### 2.1 Tailscale (mais simples)
 
+**Problema que resolve:** administrar o servidor (SSH, SFTP, painéis web) de qualquer lugar **sem** redirecionar portas no roteador e **sem** IP público fixo.
+
+**Ideia:** todos os dispositivos entram na mesma “rede virtual”. O servidor recebe um IP `100.x.x.x` estável; em casa ou via 4G, o acesso usa esse endereço.
+
 **No servidor:**
 
 ```bash
@@ -52,7 +56,7 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
 
-Seguir o link de autenticação exibido no terminal para associar a conta Tailscale.
+O segundo comando abre um link no navegador para login. Após autenticar, a máquina aparece no painel Tailscale — **anotar o IP** atribuído.
 
 **Em dispositivos remotos (Mac, Windows, celular):**
 
@@ -105,7 +109,9 @@ Verificar se o IP visto em https://ifconfig.me coincide com o WAN do roteador. S
 
 ### 3.2 DDNS (DNS dinâmico)
 
-Quando o IP público muda periodicamente, um serviço DDNS associa um hostname ao IP atual.
+**Problema que resolve:** provedores residenciais mudam o IP público. Sem DDNS, um domínio ou bookmark deixa de funcionar após dias ou semanas.
+
+**Como funciona:** um script no servidor (ou no roteador) avisa o serviço DDNS sempre que o IP muda; o hostname aponta automaticamente para o endereço atual.
 
 | Serviço | URL |
 |---------|-----|

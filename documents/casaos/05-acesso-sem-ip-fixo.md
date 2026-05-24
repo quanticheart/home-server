@@ -41,19 +41,25 @@ O **mDNS** (Bonjour/Avahi) permite resolver `http://homeserver.local` em vez de 
 
 ### 2.1 Instalar Avahi no Ubuntu
 
+O **Avahi** publica o nome do servidor na rede local (protocolo mDNS). Outros dispositivos passam a resolver `homeserver.local` para o IP atual — mesmo quando o DHCP mudar o número.
+
 ```bash
 sudo apt update
 sudo apt install -y avahi-daemon
 sudo systemctl enable --now avahi-daemon
 ```
 
+**Resultado esperado:** `systemctl status avahi-daemon` mostra serviço ativo.
+
 ### 2.2 Definir hostname
+
+O hostname é a “etiqueta” usada no `.local`. Escolha um nome curto e único na rede (ex.: `homeserver`, não genérico como `ubuntu` se houver vários PCs).
 
 ```bash
 sudo hostnamectl set-hostname homeserver
 ```
 
-Reiniciar ou aguardar alguns minutos.
+Aguardar um minuto ou reiniciar para todos os clientes enxergarem o novo nome.
 
 ### 2.3 Testar
 
@@ -80,15 +86,19 @@ Quando mDNS não for confiável em todos os dispositivos, fixar o IP **no servid
 
 ### 3.1 Identificar interface
 
+Antes de fixar IP, descubra **qual placa de rede** o servidor usa e qual é o **gateway** (em geral o roteador). IP estático errado na interface errada deixa o servidor sem internet.
+
 ```bash
 ip a
 ```
 
-Anotar interface (ex.: `enp3s0`, `eth0`) e gateway atual (em geral `192.168.1.1`).
+Anotar interface com cabo ativo (ex.: `enp3s0`, `eth0`) e o gateway usado hoje — costuma aparecer na rota padrão (`ip route | grep default`).
 
 ### 3.2 Exemplo Netplan
 
-Editar `/etc/netplan/00-installer-config.yaml` (nome pode variar):
+O Ubuntu 24.04 configura rede via **Netplan**. O arquivo abaixo **desliga DHCP** e define IP fixo manualmente. Use um IP livre na faixa da rede (ex.: `.100`) que o roteador não entregue a outros aparelhos.
+
+Editar `/etc/netplan/00-installer-config.yaml` (o nome do arquivo pode variar — listar com `ls /etc/netplan/`):
 
 ```yaml
 network:

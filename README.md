@@ -97,6 +97,19 @@ Hub: **[CasaOS](documents/CASAOS.md)** — painel de nuvem pessoal ([site oficia
 
 ---
 
+## Como os guias são escritos
+
+Cada tutorial segue uma lógica de **aprendizado**, não apenas uma lista de comandos:
+
+1. **Problema ou objetivo** — o que se quer resolver (ex.: disco com espaço “perdido”, celular sem acessar pasta).
+2. **Por que este fluxo** — como a solução funciona em poucas frases.
+3. **Comandos ou passos** — o que executar, com contexto antes e depois.
+4. **Resultado esperado** — como confirmar que deu certo.
+
+Se uma seção parecer só “comandos e ponto”, vale relatar — o objetivo é que qualquer leitor entenda **o que está fazendo**, não apenas copiar e colar.
+
+---
+
 ## Contribuição e uso
 
 Esta documentação é escrita como **manual público**: exemplos (IPs, tamanhos de disco, nomes de usuário) são ilustrativos e devem ser adaptados a cada ambiente. Não substitui a [documentação oficial do Ubuntu Server](https://documentation.ubuntu.com/server/) nem o site do [CasaOS](https://casaos.zimaspace.com/).

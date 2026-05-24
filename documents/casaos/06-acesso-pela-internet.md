@@ -56,16 +56,20 @@ flowchart LR
 
 ## 3. Opção A — Tailscale (recomendada)
 
-Trata o celular e o servidor como se estivessem na mesma rede virtual, sem abrir portas no roteador.
+**Problema que resolve:** acessar CasaOS e pastas Samba de fora de casa **sem** abrir portas no roteador e **sem** expor SMB na internet pública.
+
+**Como funciona:** Tailscale cria uma rede privada entre dispositivos autorizados. O servidor ganha um IP estável (ex.: `100.x.x.x`) que funciona em qualquer lugar — como se o celular estivesse na mesma LAN.
 
 ### 3.1 Servidor
+
+Instale o cliente Tailscale no Ubuntu e associe à conta. O link exibido no terminal autentica esta máquina na rede mesh.
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
 
-Anotar IP Tailscale (ex.: `100.64.0.5`) no painel https://login.tailscale.com/admin/machines
+**Resultado esperado:** no painel https://login.tailscale.com/admin/machines aparece o servidor com IP Tailscale (ex.: `100.64.0.5`). Esse IP substitui `192.168.x.x` quando estiver fora de casa.
 
 ### 3.2 Android
 

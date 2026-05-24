@@ -26,13 +26,19 @@ Isso **não significa** que os outros ~400 GB foram perdidos. Em muitos casos, o
 
 ## 2. Diagnóstico
 
-Executar os comandos abaixo e registrar a saída antes de qualquer alteração.
+Antes de alterar partições ou volumes, é preciso **entender o layout atual do disco**. O objetivo desta etapa é responder: o espaço “faltante” está livre no LVM, em outra partição ou realmente indisponível?
+
+Executar os comandos abaixo e **anotar a saída** — em caso de erro depois, esses dados ajudam a reverter ou pedir suporte.
 
 ### 2.1 Visão geral dos dispositivos
+
+O comando `lsblk` lista discos e partições em árvore, como o “gerenciador de disco” em modo texto. Serve para ver se existe espaço **sem particionar** após o volume do Ubuntu.
 
 ```bash
 lsblk
 ```
+
+**O que observar:** tamanho total do disco (`sda`), partições filhas e onde cada uma está montada (`/` = sistema).
 
 Exemplo típico (valores ilustrativos):
 
@@ -47,11 +53,17 @@ sda                       500G
 
 ### 2.2 Volume group e volumes lógicos
 
+Se a instalação usou **LVM** (comum no Ubuntu Server), o disco físico alimenta um *volume group* (`ubuntu-vg`) e dentro dele existem *logical volumes* (como `ubuntu-lv`). O espaço pode estar **alocado no grupo mas ainda não no volume** que monta `/`.
+
+Estes três comandos respondem: “Quanto espaço livre existe no grupo LVM para eu usar?”
+
 ```bash
 sudo pvs
 sudo vgs
 sudo lvs
 ```
+
+**Resultado esperado:** em `vgs`, a coluna **VFree** com valor alto (ex.: ~400G) indica que dá para expandir sem criar nova partição.
 
 Interpretação:
 
@@ -75,13 +87,21 @@ Confirma quanto espaço o sistema de arquivos em `/` reconhece atualmente.
 
 ## 3. Expandir volume LVM (caso mais comum)
 
-Aplicar quando `vgs` mostra espaço livre no `ubuntu-vg` e o sistema de arquivos em `/` é **ext4** (padrão na instalação Ubuntu).
+**Problema que resolve:** o sistema instalou-se em ~100 GB, mas o disco tem 500 GB e o restante aparece como espaço livre no `ubuntu-vg`.
+
+**Ideia do fluxo:** (1) aumentar o volume lógico que contém `/`; (2) fazer o sistema de arquivos **ext4** ocupar esse novo tamanho. São duas camadas — LVM e filesystem — por isso são dois passos.
+
+Aplicar quando `vgs` mostra espaço livre no `ubuntu-vg` e `df -T /` indica **ext4**.
 
 ### 3.1 Estender o volume lógico
+
+O `lvextend` **reserva** todo o espaço livre do grupo para o volume `ubuntu-lv`. Ainda não altera o que o `df -h` mostra — apenas prepara o “container”.
 
 ```bash
 sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
 ```
+
+**Se der certo:** mensagem indicando novo tamanho do LV. **Se falhar:** conferir caminho com `sudo lvs` (nomes variam entre instalações).
 
 > O caminho exato pode variar. Confirmar com `sudo lvs` — em alguns sistemas aparece como `/dev/mapper/ubuntu--vg-ubuntu--lv`.
 
@@ -93,38 +113,50 @@ sudo lvextend -l +100%FREE /dev/mapper/ubuntu--vg-ubuntu--lv
 
 ### 3.2 Redimensionar o sistema de arquivos
 
-Para ext4:
+Agora o **sistema de arquivos** dentro do volume precisa crescer. O `resize2fs` faz isso online (sem desmontar `/` em ext4), para que pastas e apps passem a enxergar o espaço novo.
 
 ```bash
 sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
 ```
 
+**Resultado esperado:** progresso de redimensionamento e conclusão sem erro.
+
 ### 3.3 Confirmar
+
+Estes comandos verificam se o espaço está visível para o dia a dia (instalar apps, copiar arquivos):
 
 ```bash
 df -h /
 sudo lvs
 ```
 
-O tamanho de `/` deve refletir a capacidade expandida (próximo de 500 GB menos partições de boot/EFI).
+O tamanho de `/` deve refletir a capacidade expandida (próximo de 500 GB menos partições de boot/EFI). Se `df` ainda mostrar ~100 GB, repetir o diagnóstico da seção 2 — pode não ser caso LVM ou o caminho do LV está incorreto.
 
 ---
 
 ## 4. Criar um segundo volume para dados (`/srv`)
 
-Quando se deseja **separar** sistema operacional e dados em vez de expandir apenas `/`:
+**Problema que resolve:** manter o sistema em uma partição/LV menor e dedicar outro volume só a dados (sites, backup, mídia). Facilita backup, migração e evita encher `/` com arquivos grandes.
+
+**Quando escolher este fluxo em vez da seção 3:** preferência por separar SO e dados, ou já expandiu `/` e ainda há VFree para um segundo volume.
 
 ### 4.1 Criar volume lógico
 
+Primeiro confirma-se quanto espaço ainda existe no grupo; em seguida cria-se um volume lógico **novo** (não confundir com expandir `ubuntu-lv`).
+
 ```bash
-# Ver espaço livre
+# Ver espaço livre no grupo LVM
 sudo vgs
 
 # Criar LV de 400G (ajustar tamanho conforme necessidade)
 sudo lvcreate -L 400G -n data-lv ubuntu-vg
 ```
 
+**Resultado esperado:** `data-lv` listado em `sudo lvs`, com tamanho definido.
+
 ### 4.2 Formatar e montar
+
+Novo volume precisa de sistema de arquivos antes de guardar dados. `mkfs.ext4` formata; `mount` associa temporariamente a `/srv` (reinício desmonta até configurar fstab).
 
 ```bash
 sudo mkfs.ext4 /dev/ubuntu-vg/data-lv
@@ -132,27 +164,33 @@ sudo mkdir -p /srv
 sudo mount /dev/ubuntu-vg/data-lv /srv
 ```
 
+**Resultado esperado:** `df -h /srv` mostra o tamanho do `data-lv`.
+
 ### 4.3 Montagem automática no boot
 
-Obter UUID:
+**Problema que resolve:** sem entrada no `fstab`, após reboot `/srv` fica vazio e serviços quebram.
+
+O UUID identifica o volume de forma estável (não muda como `/dev/ubuntu-vg/data-lv` em alguns casos de renomeação).
 
 ```bash
 sudo blkid /dev/ubuntu-vg/data-lv
 ```
 
-Adicionar linha em `/etc/fstab` (exemplo):
+Copiar o UUID exibido e adicionar linha em `/etc/fstab` (exemplo):
 
 ```
 UUID=xxxx-xxxx  /srv  ext4  defaults  0  2
 ```
 
-Testar antes de reiniciar:
+O comando `mount -a` testa o fstab **sem reiniciar** — se houver erro de sintaxe, corrigir antes do reboot.
 
 ```bash
 sudo umount /srv
 sudo mount -a
 df -h /srv
 ```
+
+**Resultado esperado:** `/srv` montado com o tamanho correto; nenhuma mensagem de erro em `mount -a`.
 
 Estrutura de subpastas em [04-pastas-e-servicos.md](04-pastas-e-servicos.md).
 

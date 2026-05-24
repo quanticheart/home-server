@@ -22,6 +22,8 @@ Escolher e instalar apps Docker pelo painel CasaOS para arquivos, mídia, sincro
 
 ## 1. Formas de instalar apps
 
+**Contexto:** o CasaOS não instala programas “no Ubuntu” diretamente — ele sobe **contêineres Docker**. Cada app da loja é uma imagem pré-configurada (portas, volumes, variáveis). Por isso é importante mapear volumes para `/srv/casaos/`: os dados ficam no disco do servidor, não só dentro do contêiner.
+
 | Método | Quando usar |
 |--------|-------------|
 | **App Store** | Apps verificados pela comunidade; instalação em um clique |
@@ -29,6 +31,8 @@ Escolher e instalar apps Docker pelo painel CasaOS para arquivos, mídia, sincro
 | **Import Appfile** | Compartilhar configuração exportada com outra instalação |
 
 ### Custom Install (resumo)
+
+**Quando usar:** o app desejado não aparece na loja, mas existe no Docker Hub com comando `docker run` documentado.
 
 1. Buscar imagem em https://hub.docker.com/
 2. Copiar comando `docker run` da documentação do app
@@ -115,6 +119,8 @@ Evitar gravar dados grandes apenas em volumes Docker internos sem mapeamento —
 ---
 
 ## 5. Exemplo: instalar Nextcloud pela App Store
+
+**Por que Nextcloud:** oferece apps Android/iOS, sincronização e acesso HTTPS — complementa ou substitui SMB para uso fora de casa ([06-acesso-pela-internet.md](06-acesso-pela-internet.md)).
 
 1. Abrir painel CasaOS → **App Store**
 2. Buscar **Nextcloud**

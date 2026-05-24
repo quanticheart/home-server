@@ -16,6 +16,8 @@ Este guia descreve o processo completo: download da ISO, criação de pendrive b
 
 ## 1. Download da ISO
 
+**Objetivo desta etapa:** obter a imagem oficial do instalador. Só baixar de fontes Canonical evita ISOs alteradas.
+
 1. Acesse https://ubuntu.com/download/server
 2. Selecione **Ubuntu Server 24.04 LTS**
 3. Baixe o arquivo `.iso` (aproximadamente 2–3 GB)
@@ -42,7 +44,9 @@ O valor exibido deve coincidir com o hash oficial da Canonical.
 
 ## 2. Criar pendrive bootável
 
-> **Atenção:** gravar a ISO apaga todos os dados do pendrive. Confirme a letra/nome do dispositivo antes de prosseguir.
+**O que acontece:** a ISO é gravada no USB para o PC **iniciar por ela** em vez do disco interno. Sem este passo, o instalador não abre na máquina que virará servidor.
+
+> **Atenção:** gravar a ISO apaga todos os dados do pendrive. Confirme a letra/nome do dispositivo antes de prosseguir — no Mac, confundir disco interno com pendrive é um erro comum e destrutivo.
 
 ### macOS
 
@@ -220,6 +224,15 @@ Na tela **Featured Server Snaps** ou equivalente:
 Na console física do servidor, entrar com o usuário e senha criados na instalação.
 
 ### Verificações iniciais
+
+Antes de instalar CasaOS ou copiar terabytes de dados, confirme que rede e disco estão corretos. Cada comando abaixo responde uma pergunta diferente:
+
+| Comando | Pergunta que responde |
+|---------|------------------------|
+| `hostname -I` | Qual IP usar para SSH e navegador? |
+| `df -h` | Quanto espaço o sistema enxerga em `/`? |
+| `sudo vgs` / `sudo lvs` | Há espaço LVM não alocado? |
+| `sudo apt update` | O servidor alcança repositórios de pacotes? |
 
 ```bash
 # Endereço IP na rede

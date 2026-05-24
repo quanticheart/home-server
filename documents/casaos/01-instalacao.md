@@ -25,46 +25,52 @@ Instalar o CasaOS via script oficial, acessar o painel na rede local e criar a c
 
 ## 1. Preparar o sistema
 
-Conectar via SSH ou console local e executar:
+**Por que atualizar antes:** o instalador do CasaOS baixa pacotes e imagens Docker. Um sistema desatualizado pode falhar por dependências antigas ou conflitos de kernel.
+
+Conectar via SSH ou console local. Os comandos abaixo atualizam a lista de pacotes e instalam correções de segurança pendentes.
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
 ```
 
-Verificar conectividade e IP:
+Para acessar o painel pelo navegador, é necessário saber o **IP do servidor na rede local**:
 
 ```bash
 hostname -I
 ```
 
-Anotar o endereço IPv4 exibido — será usado para acessar o painel (ex.: `192.168.1.100`).
+**Resultado esperado:** primeira linha com algo como `192.168.1.100`. Anotar esse valor — será usado em `http://192.168.1.100` até configurar hostname fixo ([05-acesso-sem-ip-fixo.md](05-acesso-sem-ip-fixo.md)).
 
 ---
 
 ## 2. Instalar o CasaOS
 
-Executar o instalador oficial:
+**O que este passo faz:** baixa e executa o script oficial da IceWhale. Ele prepara Docker (se ainda não existir), instala o serviço do painel e cria a estrutura de dados do CasaOS.
 
 ```bash
 curl -fsSL https://get.casaos.io | sudo bash
 ```
 
-O script em geral:
+Durante a execução, o script em geral:
 
 - Instala dependências (incluindo Docker, se necessário)
-- Configura o serviço `casaos`
+- Registra o serviço `casaos` no systemd
 - Define pastas de dados do sistema
 
-Aguardar até a mensagem de conclusão no terminal.
+Aguardar até a mensagem de conclusão no terminal — interromper no meio pode deixar instalação incompleta.
 
 ---
 
 ## 3. Verificar o serviço
 
+**Por que verificar:** se o serviço `casaos` não estiver ativo, o navegador não abre o painel mesmo com IP correto.
+
 ```bash
 sudo systemctl status casaos
 ```
+
+**O que procurar:** linha `Active: active (running)` em verde. Se estiver `inactive` ou `failed`, usar os comandos abaixo em vez de insistir no navegador.
 
 Se o serviço não estiver ativo:
 
@@ -83,12 +89,16 @@ sudo ss -tlnp | grep -i casa
 
 ## 4. Firewall (UFW)
 
-Se o firewall estiver ativo, liberar a porta do painel. Por padrão, muitas instalações usam a porta **80**:
+**Problema que resolve:** no Ubuntu, o UFW pode bloquear conexões de outros PCs na LAN. O painel CasaOS responde em HTTP (em geral porta **80**); sem liberar essa porta, o navegador dá timeout.
+
+Se o firewall estiver ativo (`sudo ufw status` mostra `active`), execute:
 
 ```bash
 sudo ufw allow 80/tcp
 sudo ufw status
 ```
+
+**Resultado esperado:** regra `80/tcp ALLOW` listada. Se o painel usar outra porta (Settings do CasaOS), liberar essa porta em vez de 80.
 
 > A porta pode ser alterada depois em **Settings** no painel CasaOS. Após mudança, liberar a nova porta no UFW.
 
