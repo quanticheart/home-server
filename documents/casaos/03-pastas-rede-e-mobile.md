@@ -1,6 +1,6 @@
 # Pastas compartilhadas, rede local e dispositivos móveis
 
-Este guia descreve como criar pastas no servidor CasaOS, compartilhá-las na rede (Samba), acessá-las no **macOS**, **Windows**, **Android** e **iOS**, transferir arquivos remotamente e restringir um usuário a **uma única pasta**.
+Este guia descreve como criar pastas no CasaOS, **compartilhá-las na rede** para Mac, Windows, Android e iOS, transferir arquivos e restringir o acesso por usuário.
 
 **Índice:** [CASAOS.md](../CASAOS.md) | Anterior: [02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.md) | Próximo: [04-apps-recomendados.md](04-apps-recomendados.md)
 
@@ -8,339 +8,303 @@ Este guia descreve como criar pastas no servidor CasaOS, compartilhá-las na red
 
 ## Objetivo
 
-Configurar armazenamento em `/srv/casaos/`, expor compartilhamentos SMB na LAN e documentar o acesso passo a passo em cada tipo de dispositivo — com ênfase em **Android** e **iOS**.
+Configurar armazenamento no servidor, expor pastas na rede local (protocolo SMB) e acessá-las em cada tipo de dispositivo — com atenção especial a **Android** e **iOS**.
+
+---
+
+## De onde vem este guia?
+
+Este documento combina **duas camadas** que costumam aparecer juntas na prática:
+
+| Camada | O que é | Quando usar |
+|--------|---------|-------------|
+| **CasaOS (app FILES)** | Interface web do CasaOS para criar pastas e ativar **compartilhamento Samba** com poucos cliques | Fluxo **recomendado** para começar |
+| **Ubuntu (terminal)** | Usuários Linux, `smbpasswd`, edição de `/etc/samba/smb.casa.conf` | Quando for preciso **senha obrigatória**, vários usuários ou pastas fora do padrão do CasaOS |
+
+O CasaOS **já integra Samba**: ao compartilhar uma pasta pelo FILES, o sistema grava a configuração em `/etc/samba/smb.casa.conf` e reinicia o serviço. Não é necessário instalar Samba “do zero” na mão para o caso básico — mas **proteger com usuário e senha** ainda envolve passos no Ubuntu, porque o compartilhamento pela interface costuma vir **aberto na rede local** por padrão (acesso convidado).
+
+Referências úteis: [site CasaOS](https://casaos.zimaspace.com/), discussões da comunidade no [GitHub IceWhaleTech/CasaOS](https://github.com/IceWhaleTech/CasaOS) (Samba e FILES).
 
 ---
 
 ## Pré-requisitos
 
 - CasaOS instalado ([01-instalacao.md](01-instalacao.md))
-- Usuários Linux criados ([02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.md))
-- Servidor e clientes na mesma rede Wi-Fi/LAN (para acesso SMB local)
-- IP ou hostname do servidor (ex.: `192.168.1.100` ou `homeserver.local`)
+- Servidor e clientes na **mesma rede Wi-Fi/LAN**
+- IP ou hostname do servidor (ex.: `192.168.1.100` ou `homeserver.local` — ver [05-acesso-sem-ip-fixo.md](05-acesso-sem-ip-fixo.md))
+- Para acesso com senha: usuário Linux criado ([02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.md))
 
 ---
 
-## 1. Criar e organizar pastas
+## 1. Onde ficam os arquivos no CasaOS
 
-### 1.1 Estrutura sugerida
+Ao abrir **FILES** no painel, a área principal costuma ser a pasta **`/DATA`** no servidor (padrão do CasaOS). Dentro dela podem existir subpastas como `Documents`, `Photos`, `Downloads` — ou **pastas novas** criadas pelo próprio app.
 
-```
-/srv/casaos/
-├── compartilhado/     # Toda a família
-├── fotos/             # Fotos e vídeos
-├── convidado/         # Acesso restrito
-└── privado/           # Administrador
-```
+| Caminho | Uso |
+|---------|-----|
+| `/DATA/MinhaPasta` | Pastas criadas pelo FILES (fluxo normal) |
+| `/srv/casaos/...` | Layout alternativo via terminal — só se tiver criado manualmente |
 
-### 1.2 Comandos
-
-**O que este bloco faz:** cria a árvore de pastas no disco do servidor e define **quem pode escrever** em cada uma. Sem isso, o Samba até monta a pasta na rede, mas gravações podem falhar com “permissão negada”.
-
-```bash
-sudo mkdir -p /srv/casaos/{compartilhado,fotos,convidado,privado}
-sudo chown -R $USER:$USER /srv/casaos/compartilhado /srv/casaos/fotos
-sudo chown convidado:convidado /srv/casaos/convidado
-sudo chmod 700 /srv/casaos/privado
-```
-
-**Resultado esperado:** `ls -la /srv/casaos` mostra donos diferentes por pasta; `privado` só acessível pelo root/admin.
-
-### 1.3 App FILES no CasaOS
-
-No painel web CasaOS, abrir **FILES** para navegar, criar subpastas e enviar arquivos pela interface. Os volumes Docker de apps podem ser mapeados para subpastas de `/srv/casaos/` na instalação de cada app ([04-apps-recomendados.md](04-apps-recomendados.md)).
+> **Importante:** o nome que aparece na rede (ex.: `MinhaPasta`) é o **nome do compartilhamento Samba**, em geral igual ao nome da pasta no FILES. Anotar esse nome para conectar no Mac, Windows ou celular.
 
 ---
 
-## 2. Compartilhar na rede com Samba (SMB)
+## 2. Caminho recomendado — criar pasta e compartilhar pelo FILES
 
-**Problema que resolve:** fazer o servidor aparecer como **pasta de rede** no Mac, Windows e celular — sem instalar app extra em muitos casos.
+**Problema que resolve:** ter uma pasta na rede local sem editar arquivos de configuração na mão.
 
-**Por que SMB:** é o protocolo que o Explorer, o Finder e o app Arquivos (iOS) entendem nativamente para “servidor de arquivos na LAN”.
+**O que o CasaOS faz nos bastidores:** ao ativar o compartilhamento, o CasaOS registra o share no banco interno, gera entradas em `/etc/samba/smb.casa.conf` e recarrega o Samba.
 
-### 2.1 Instalar Samba
+### 2.1 Criar a pasta no FILES
 
-O pacote `samba` instala o daemon `smbd`, que escuta conexões de rede e aplica as regras do arquivo de configuração.
+1. Abrir o painel CasaOS no navegador (ex.: `http://192.168.1.100`)
+2. Entrar no app **FILES**
+3. Navegar até **DATA** (ou outro volume listado à esquerda)
+4. Criar pasta: menu **+** / **New Folder** / botão de nova pasta (o rótulo pode variar conforme a versão)
+5. Dar um nome claro — ex.: `compartilhado`, `fotos`, `convidado`
+
+**Resultado esperado:** a pasta aparece na árvore do FILES e no disco em `/DATA/compartilhado` (ou nome escolhido).
+
+### 2.2 Ativar compartilhamento Samba na pasta
+
+1. No FILES, localizar a pasta criada
+2. Abrir o menu da pasta (clique direito ou ícone **⋯**)
+3. Escolher opção do tipo **Share**, **Share via Samba** ou **Manage Samba** / **Gerenciar Samba**
+4. Confirmar a criação do compartilhamento na interface
+
+**Resultado esperado:**
+
+- A pasta passa a aparecer na seção de compartilhamentos do CasaOS (em algumas versões: **Shared** / **Compartilhados**)
+- No Windows, algo como `\\192.168.1.100\compartilhado`
+- No Mac, `smb://192.168.1.100/compartilhado`
+
+### 2.3 Testar na rede local
+
+| Sistema | Como testar |
+|---------|-------------|
+| **Windows** | Explorador → `\\IP_DA_MAQUINA\nome_da_pasta` |
+| **Mac** | Finder → Ir → Conectar ao Servidor → `smb://IP/nome_da_pasta` |
+
+Se abrir **sem pedir senha**, o share está no modo **convidado** (padrão comum do CasaOS). Qualquer dispositivo na mesma rede pode ler e gravar — conveniente em casa, **arriscado** se a rede não for confiável. A seção 3 explica como exigir usuário e senha.
+
+### 2.4 Enviar arquivos pelo próprio FILES
+
+Para uso só pelo navegador (sem montar pasta no sistema operacional):
+
+- Arrastar arquivos para a pasta no FILES, ou
+- Usar upload pelo botão do app
+
+Isso **não substitui** o SMB no celular — para Android/iOS na LAN, seguir as seções 7 e 8.
+
+---
+
+## 3. Proteger o compartilhamento (senha e usuário)
+
+**Problema que resolve:** o compartilhamento criado pelo FILES costuma permitir acesso **anônimo na LAN** (`guest ok = Yes` em `/etc/samba/smb.casa.conf`). Para exigir login — recomendado mesmo em casa — é preciso ajustar Samba no Ubuntu.
+
+**Fluxo resumido:** (1) ter usuário Linux → (2) definir senha Samba → (3) editar o share gerado pelo CasaOS → (4) reiniciar Samba.
+
+### 3.1 Usuário Linux e senha Samba
+
+O Samba autentica com **contas do Ubuntu**, não com a senha do painel web do CasaOS (salvo se for a mesma conta de sistema).
 
 ```bash
-sudo apt update
-sudo apt install -y samba
+# Exemplo: usuário dedicado (ver 02-usuarios-e-permissoes.md)
+sudo adduser familia
+sudo smbpasswd -a familia
 ```
 
-### 2.2 Configurar compartilhamentos
+O comando `smbpasswd` cria a credencial de **rede** usada pelo Windows, Mac e celular. Repetir para cada pessoa (`convidado`, etc.).
 
-Cada bloco `[nome]` em `smb.conf` vira um **share** visível na rede (`\\IP\compartilhado`). O `valid users` limita **quem** pode entrar; o `path` define **qual pasta** no disco é exposta.
+### 3.2 Ajustar o share que o CasaOS criou
 
-Fazer backup de `/etc/samba/smb.conf` e editar o arquivo. Adicionar ao final:
+O CasaOS grava shares em **`/etc/samba/smb.casa.conf`**. Fazer backup antes de editar:
+
+```bash
+sudo cp /etc/samba/smb.casa.conf /etc/samba/smb.casa.conf.bak
+sudo nano /etc/samba/smb.casa.conf
+```
+
+Localizar o bloco da pasta (ex.: `[compartilhado]`) e alterar conforme o exemplo:
 
 ```ini
 [compartilhado]
-   path = /srv/casaos/compartilhado
+   comment = CasaOS share compartilhado
+   path = /DATA/compartilhado
    browseable = yes
    read only = no
    guest ok = no
    valid users = familia
-
-[fotos]
-   path = /srv/casaos/fotos
-   browseable = yes
-   read only = no
-   guest ok = no
-   valid users = familia, fotos
-
-[convidado]
-   path = /srv/casaos/convidado
-   browseable = yes
-   read only = no
-   guest ok = no
-   valid users = convidado
 ```
 
-### 2.3 Senhas Samba
+| Parâmetro | Significado |
+|-----------|-------------|
+| `guest ok = no` | Exige autenticação — desliga acesso anônimo |
+| `valid users = familia` | Só o usuário `familia` (ajustar nome) |
+| `path` | Deve apontar para o caminho real da pasta (conferir no FILES ou com `ls /DATA`) |
 
-O Linux e o Samba usam a **mesma conta** (`familia`), mas senhas de rede são registradas à parte. Sem `smbpasswd`, o cliente pede senha e sempre falha.
+> Se o CasaOS criar um **novo** share pela interface depois da edição manual, pode **reescrever** trechos deste arquivo. Manter o `.bak` e repetir o ajuste de `guest ok` quando necessário.
 
-```bash
-sudo smbpasswd -a familia
-sudo smbpasswd -a convidado
-sudo smbpasswd -e familia
-sudo smbpasswd -e convidado
-```
-
-### 2.4 Ativar e testar
-
-Estes comandos garantem que o Samba inicia com o sistema, recarrega a config e libera o firewall para clientes na LAN.
+### 3.3 Aplicar e testar
 
 ```bash
-sudo systemctl enable smbd nmbd
 sudo systemctl restart smbd
 sudo ufw allow samba
 ```
 
-**Resultado esperado:** de outro PC, `\\192.168.1.100\compartilhado` (Windows) ou `smb://192.168.1.100/compartilhado` (Mac) pede login e abre a pasta.
+Tentar de novo no Mac ou Windows: agora deve pedir **usuário** e **senha Samba**.
 
-Teste local:
-
-```bash
-smbclient -L //localhost -U familia
-```
+**Resultado esperado:** sem credenciais corretas, a conexão é recusada.
 
 ---
 
-## 3. Acesso no macOS (Finder)
+## 4. Caminho alternativo — terminal Ubuntu (avançado)
 
-**Contexto:** após Samba configurado (seção 2), o Mac trata o servidor como **volume de rede**. Não é necessário app extra — o Finder fala SMB nativamente.
+**Quando usar este caminho em vez do FILES:**
 
-**O que será feito:** montar `compartilhado` na barra lateral para arrastar arquivos como em um pendrive na rede.
+- Quiser tudo em `/srv/casaos/` em vez de `/DATA`
+- Precisar definir donos, grupos e permissões **antes** de compartilhar
+- Montar disco extra só para dados
+
+**O que este bloco faz:** cria pastas e permissões no Linux; o compartilhamento na rede ainda pode ser feito pelo FILES (apontando para essa pasta, se ela aparecer no app) ou configurando `smb.conf` manualmente.
+
+```bash
+sudo mkdir -p /srv/casaos/{compartilhado,fotos,convidado}
+sudo chown -R $USER:$USER /srv/casaos/compartilhado /srv/casaos/fotos
+sudo chown convidado:convidado /srv/casaos/convidado
+```
+
+Para expor `/srv/casaos/compartilhado` só pela linha de comando (sem FILES), adicionar bloco em `/etc/samba/smb.conf` ou `smb.casa.conf` — mesmo formato da seção 3.2, mudando `path`.
+
+---
+
+## 5. Acesso no macOS (Finder)
+
+**Contexto:** após o share existir (seção 2 ou 3), o Mac monta a pasta como volume de rede.
 
 1. Abrir **Finder**
-2. Menu **Ir** → **Conectar ao Servidor** (ou `Cmd + K`)
-3. Informar: `smb://192.168.1.100/compartilhado`  
-   - Alternativa com mDNS: `smb://homeserver.local/compartilhado`
-4. Clicar em **Conectar**
-5. Modo **Registrado**; informar usuário `familia` e senha Samba
-6. O volume monta na barra lateral
-7. **Upload:** arrastar arquivos para a janela do Finder  
-8. **Download:** arrastar da pasta do servidor para o Mac
-9. Para reconectar ao ligar o Mac: **Preferências do Sistema** → **Usuários e Grupos** → **Itens de login** (ou marcar “Lembrar” na conexão)
+2. **Ir** → **Conectar ao Servidor** (`Cmd + K`)
+3. Digitar: `smb://192.168.1.100/compartilhado` (ajustar IP e **nome do share**)
+   - Com mDNS: `smb://homeserver.local/compartilhado`
+4. **Conectar** → modo **Registrado** se o share exige senha
+5. Informar usuário Linux e senha Samba (`familia` no exemplo)
+6. **Upload:** arrastar arquivos para a janela do Finder
+7. **Download:** arrastar do volume do servidor para o Mac
 
 ---
 
-## 4. Acesso no Windows (Explorador de Arquivos)
-
-**Contexto:** o Windows usa o protocolo SMB com caminho `\\servidor\share`. Credenciais são as do usuário Linux com senha registrada no `smbpasswd`.
+## 6. Acesso no Windows (Explorador de Arquivos)
 
 1. Abrir **Explorador de Arquivos**
-2. Na barra de endereço, digitar: `\\192.168.1.100\compartilhado`
-3. Pressionar Enter
-4. Informar usuário `familia` e senha Samba (domínio pode ficar em branco ou usar `192.168.1.100\familia`)
-5. Marcar **Lembrar credenciais** se desejado
-6. **Upload:** copiar/colar arquivos na janela  
-7. **Download:** copiar para `Downloads` ou outra pasta local
-8. **Mapear unidade de rede (opcional):** botão direito em **Este computador** → **Mapear unidade de rede** → escolher letra (ex.: `Z:`) → pasta `\\192.168.1.100\compartilhado` → **Conectar usando credenciais diferentes** → informar `familia`
+2. Na barra de endereço: `\\192.168.1.100\compartilhado`
+3. Enter → informar usuário e senha Samba se solicitado
+4. **Mapear unidade (opcional):** Este computador → Mapear unidade de rede → `\\IP\compartilhado`
 
 ---
 
-## 5. Transferência remota (SCP, rsync, SFTP)
+## 7. Transferência via SSH (SCP, rsync, SFTP)
 
-**Quando usar em vez de SMB:** administração pelo mesmo SSH do servidor, scripts automatizados, ou redes onde SMB está bloqueado. **Não substitui** o acesso fácil no celular — para isso, preferir SMB (seções 7–8) ou Nextcloud.
+**Quando usar:** scripts, administração, ou quando SMB não funciona na rede.
 
-### 5.1 SCP — arquivo único
-
-Cópia pontual e criptografada — um arquivo por comando, ou pasta com `-r`.
-
-**Enviar para o servidor:**
+O caminho no disco continua sendo `/DATA/nome_da_pasta` (CasaOS) ou `/srv/casaos/...` (manual).
 
 ```bash
-scp documento.pdf familia@192.168.1.100:/srv/casaos/compartilhado/
+# Enviar arquivo
+scp foto.jpg familia@192.168.1.100:/DATA/compartilhado/
+
+# Sincronizar pasta
+rsync -avz ~/Fotos/ familia@192.168.1.100:/DATA/fotos/
 ```
 
-**Baixar do servidor:**
+FileZilla/Cyberduck: protocolo **SFTP**, host = IP, usuário = conta Linux.
 
-```bash
-scp familia@192.168.1.100:/srv/casaos/compartilhado/documento.pdf ~/Downloads/
+---
+
+## 8. Usuário com acesso somente a uma pasta
+
+**Problema que resolve:** `convidado` só enxerga a pasta dele, não `compartilhado` nem `fotos`.
+
+**Estratégia:**
+
+1. Criar pasta `convidado` no FILES (ou em `/DATA/convidado`)
+2. Criar usuário Linux `convidado` ([02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.md))
+3. Compartilhar **só** essa pasta pelo FILES **ou** um bloco `[convidado]` em `smb.casa.conf` com `valid users = convidado` e `path = /DATA/convidado`
+4. `sudo smbpasswd -a convidado`
+5. **Não** usar o mesmo usuário em outros shares
+
+**Teste:** conectar com `convidado` — deve ver apenas o share `convidado`; `compartilhado` não deve autenticar ou não deve aparecer para esse usuário.
+
+---
+
+## 9. Android — acesso à pasta compartilhada
+
+> **Requisito:** mesmo Wi-Fi que o servidor. Fora de casa: [06-acesso-pela-internet.md](06-acesso-pela-internet.md).
+
+### 9.1 SMB com Solid Explorer (recomendado)
+
+1. Instalar [Solid Explorer](https://play.google.com/store/apps/details?id=pl.solidexplorer2)
+2. Menu **≡** → **Armazenamento na nuvem** / **Rede** → **+** → **LAN** → **SMB**
+3. **Host:** `192.168.1.100` (ou `homeserver.local`)
+4. **Share:** nome exato do compartilhamento (ex.: `compartilhado`) — o mesmo criado no FILES
+5. **Usuário / senha:** conta Linux + senha Samba (se `guest ok = no`; se guest estiver ativo, alguns apps conectam sem senha — ver seção 3)
+6. Upload/download dentro do app
+
+### 9.2 Nextcloud ou Syncthing
+
+Alternativas com apps dedicados — ver [04-apps-recomendados.md](04-apps-recomendados.md) e seção 9 do guia antigo (mesma lógica).
+
+---
+
+## 10. iOS / iPadOS — app Arquivos (SMB)
+
+1. App **Arquivos** → **Navegar** → **⋯** → **Conectar ao Servidor**
+2. `smb://192.168.1.100` ou `smb://homeserver.local`
+3. **Registrado** + usuário/senha Samba (se share protegido)
+4. Escolher o volume com o nome do share (`compartilhado`, etc.)
+5. **Upload:** Compartilhar arquivo → **Salvar em Arquivos** → pasta do servidor
+
+---
+
+## 11. Resumo — qual caminho seguir?
+
+```mermaid
+flowchart TD
+  start[Preciso de pasta na rede] --> files[Criar pasta no FILES]
+  files --> share[Share via Samba no menu da pasta]
+  share --> test[Testar no Mac ou Windows]
+  test --> secure{Quer senha?}
+  secure -->|Sim| smbpasswd[smbpasswd + editar smb.casa.conf]
+  secure -->|Nao| mobile[Conectar Android e iOS]
+  smbpasswd --> mobile
 ```
 
-### 5.2 rsync — pasta inteira
-
-```bash
-rsync -avz --progress ~/Fotos/ familia@192.168.1.100:/srv/casaos/fotos/
-```
-
-### 5.3 SFTP — FileZilla / Cyberduck
-
-| Campo | Valor |
-|-------|-------|
-| Protocolo | SFTP |
-| Host | `192.168.1.100` |
-| Porta | `22` |
-| Usuário | `familia` (ou `convidado` com chroot) |
-| Senha | Senha Linux |
-
-Arrastar arquivos entre painéis local e remoto.
+| Etapa | CasaOS FILES | Terminal Ubuntu |
+|-------|--------------|-----------------|
+| Criar pasta | Sim | Opcional (`mkdir`) |
+| Ativar share SMB | Sim (menu da pasta) | Editar `smb.casa.conf` |
+| Exigir senha | Ajuste manual em `smb.casa.conf` | `smbpasswd` + `guest ok = no` |
+| Mac / Windows / mobile | Mesmos passos após share existir | Mesmos passos |
 
 ---
 
-## 6. Usuário com acesso somente a uma pasta
+## 12. Problemas comuns
 
-**Problema que resolve:** oferecer pasta para visitante, freelancer ou familiar sem permitir ver `compartilhado`, `fotos` ou arquivos do sistema.
-
-**Estratégia:** combinar (1) usuário Linux dedicado, (2) dono da pasta só esse usuário, (3) share Samba com `valid users` apontando só para ele. Assim, mesmo que saiba o IP do servidor, não autentica em outros shares.
-
-Exemplo: `convidado` acessa **apenas** `/srv/casaos/convidado`.
-
-### Passo a passo
-
-1. Criar usuário: `sudo adduser convidado` — identidade de rede separada
-2. Ajustar dono: `sudo chown -R convidado:convidado /srv/casaos/convidado`
-3. **Não** adicionar `convidado` ao grupo `familia`
-4. No `smb.conf`, share `[convidado]` com `valid users = convidado` e `path` apontando somente para essa pasta
-5. `sudo smbpasswd -a convidado`
-6. Reiniciar: `sudo systemctl restart smbd`
-7. **Teste no Mac:** conectar a `smb://IP/convidado` com usuário `convidado` — não deve aparecer `compartilhado`
-8. **Teste negativo:** `sudo -u convidado ls /srv/casaos/compartilhado` → Permission denied
-
-Para SFTP restrito, ver [02-usuarios-e-permissoes.md](02-usuarios-e-permissoes.md) (chroot).
-
----
-
-## 7. Android — acesso à pasta compartilhada
-
-**Objetivo:** abrir, enviar e baixar arquivos da pasta `compartilhado` no celular, como se fosse um disco na nuvem local.
-
-> **Requisito:** telefone na **mesma rede Wi-Fi** que o servidor (para SMB direto). Rede de convidados isolada no roteador pode bloquear — usar Wi-Fi principal. Fora de casa: [06-acesso-pela-internet.md](06-acesso-pela-internet.md) (Tailscale + SMB ou app Nextcloud).
-
-### 7.1 Método A — SMB com Solid Explorer (recomendado)
-
-**Por que este app:** o Android não inclui cliente SMB completo em todas as versões. Solid Explorer adiciona servidor LAN/SMB de forma estável.
-
-1. Instalar [Solid Explorer](https://play.google.com/store/apps/details?id=pl.solidexplorer2) (ou similar: MiXplorer, X-plore)
-2. Abrir o app → menu **≡** → **Armazenamento na nuvem** ou **Rede**
-3. Toque em **+** → **LAN** → **SMB**
-4. **Servidor / Host:** `192.168.1.100` (ou `homeserver.local`)
-5. **Pasta compartilhada / Share:** `compartilhado`
-6. **Usuário:** `familia`
-7. **Senha:** senha definida com `smbpasswd`
-8. Salvar e abrir a conexão
-9. **Upload:** selecionar arquivo no celular → **Compartilhar** → Solid Explorer → pasta do servidor, ou copiar/colar dentro do app
-10. **Download:** selecionar arquivo no servidor → copiar para **Downloads** ou SD
-11. Opcional: criar atalho na tela inicial do Solid Explorer para acesso rápido
-
-### 7.2 Método B — Arquivos do Google + app auxiliar
-
-O app **Arquivos** do Google não suporta SMB nativamente em todas as versões. Usar **Solid Explorer** ou **Cx File Explorer** conforme método A.
-
-### 7.3 Método C — Nextcloud (após instalar no CasaOS)
-
-1. Instalar Nextcloud pela App Store do CasaOS ([04-apps-recomendados.md](04-apps-recomendados.md))
-2. Instalar app **Nextcloud** na Play Store
-3. Abrir app → **Iniciar sessão**
-4. **URL do servidor:** `http://192.168.1.100` (ou domínio configurado)
-5. Informar usuário e senha do Nextcloud
-6. Ativar sincronização das pastas desejadas
-7. Upload: botão **+** no app; Download: arquivos disponíveis offline conforme configuração
-
-### 7.4 Método D — Syncthing
-
-1. Instalar Syncthing via CasaOS
-2. Instalar app **Syncthing** no Android
-3. Parear dispositivos (QR code)
-4. Escolher pastas para sincronização bidirecional automática
-
----
-
-## 8. iOS e iPadOS — acesso à pasta compartilhada
-
-> **Requisito:** iPhone/iPad na mesma rede Wi-Fi que o servidor (SMB). Fora de casa, ver seção 9 e [06-acesso-pela-internet.md](06-acesso-pela-internet.md).
-
-### 8.1 Método A — App Arquivos (SMB nativo)
-
-1. Abrir o app **Arquivos**
-2. Aba **Navegar** → toque em **⋯** (três pontos) no canto superior
-3. Toque em **Conectar ao Servidor**
-4. No campo servidor, digitar: `smb://192.168.1.100`  
-   - Com mDNS: `smb://homeserver.local`
-5. Toque em **Conectar**
-6. Selecionar **Registrado**
-7. **Nome:** `familia` (usuário Samba)
-8. **Senha:** senha Samba
-9. Escolher o volume **compartilhado** (ou `fotos`, `convidado`)
-10. A pasta aparece em **Navegar** → nome do servidor
-11. **Upload:** em outro app (Fotos, Safari), toque **Compartilhar** → **Salvar em Arquivos** → selecionar pasta do servidor  
-12. **Upload alternativo:** em Arquivos, abrir pasta do servidor → **⋯** → **Copiar** / arrastar de **No meu iPhone**
-13. **Download:** selecionar arquivo no servidor → **Compartilhar** → salvar em **No meu iPhone** ou iCloud Drive
-14. Para desconectar: **⋯** na pasta do servidor → **Desconectar**
-
-### 8.2 Método B — Nextcloud (iOS)
-
-1. Instalar Nextcloud no CasaOS
-2. Instalar app **Nextcloud** na App Store
-3. **URL do servidor:** `http://192.168.1.100`
-4. Login e senha Nextcloud
-5. Ativar **Disponível offline** nos arquivos importantes
-6. Upload via botão **+** no app
-
-### 8.3 Método C — SFTP (apps de terceiros)
-
-Apps como **FE File Explorer** ou **Secure ShellFish**:
-
-1. Adicionar conexão **SFTP**
-2. Host: `192.168.1.100`, porta `22`, usuário `familia`
-3. Navegar até `/srv/casaos/compartilhado` (caminho real no servidor)
-4. Upload/download dentro do app
-
----
-
-## 9. Tabela resumo — LAN vs fora de casa
-
-| Dispositivo | Na rede de casa (LAN) | Fora de casa (internet) |
-|-------------|------------------------|-------------------------|
-| **Mac** | Finder `smb://IP/compartilhado` | Tailscale + mesmo SMB, ou Nextcloud |
-| **Windows** | `\\IP\compartilhado` | Tailscale + SMB, ou Nextcloud |
-| **Android** | Solid Explorer SMB | App Nextcloud ou Tailscale + SMB |
-| **iOS** | Arquivos → Conectar ao servidor SMB | App Nextcloud ou Tailscale + SMB |
-
-Detalhes de acesso pela internet: [06-acesso-pela-internet.md](06-acesso-pela-internet.md).
-
----
-
-## 10. Problemas comuns
-
-| Problema | Solução |
-|----------|---------|
-| Android/iOS não encontra servidor | Confirmar mesmo Wi-Fi; desativar VPN no celular temporariamente |
-| Credenciais rejeitadas | `sudo smbpasswd -a usuario`; verificar usuário em `valid users` |
-| iOS não mostra SMB | Usar `smb://IP` sem barra final; rede convidado isolada no roteador impede acesso |
-| Pasta vazia no Mac mas arquivos existem | Verificar permissões `ls -la /srv/casaos/compartilhado` |
-| Firewall bloqueia | `sudo ufw allow samba` |
-| Conexão cai após reboot do servidor | Configurar IP estável ou mDNS — [05-acesso-sem-ip-fixo.md](05-acesso-sem-ip-fixo.md) |
+| Problema | Causa provável | Solução |
+|----------|----------------|---------|
+| Não aparece opção Share no FILES | Versão do CasaOS ou pasta em volume não local | Atualizar CasaOS; criar pasta em **DATA** |
+| Conecta sem senha e qualquer um entra | Padrão `guest ok = Yes` | Seção 3 — `guest ok = no` + `valid users` |
+| Senha não aceita | Sem `smbpasswd` | `sudo smbpasswd -a usuario` |
+| Share sumiu após editar config | CasaOS recriou `smb.casa.conf` | Backup `.bak`; reeditar ou compartilhar de novo e ajustar |
+| Caminho errado no `smb.casa.conf` | Pasta em `/DATA` mas path antigo | Conferir com FILES ou `ls /DATA` |
+| Android/iOS não acha servidor | Wi-Fi diferente ou guest isolado | Mesma rede; desativar VPN no celular |
+| Firewall | UFW bloqueando | `sudo ufw allow samba` |
 
 ---
 
 ## Próximos passos
 
-1. [04-apps-recomendados.md](04-apps-recomendados.md) — Nextcloud, Jellyfin e outros
-2. [05-acesso-sem-ip-fixo.md](05-acesso-sem-ip-fixo.md) — não depender do IP após reinício
-3. [06-acesso-pela-internet.md](06-acesso-pela-internet.md) — acesso remoto seguro
+1. [04-apps-recomendados.md](04-apps-recomendados.md) — Nextcloud, Jellyfin (acesso por app além de SMB)
+2. [05-acesso-sem-ip-fixo.md](05-acesso-sem-ip-fixo.md) — `homeserver.local` em vez de IP
+3. [06-acesso-pela-internet.md](06-acesso-pela-internet.md) — acesso fora de casa
 
 [← Voltar ao hub CasaOS](../CASAOS.md)

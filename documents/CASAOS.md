@@ -60,7 +60,7 @@ Os arquivos abaixo ficam em **`documents/casaos/`** — documentação **nova e 
 |---|------|----------|
 | 1 | [01-instalacao.md](casaos/01-instalacao.md) | Instalar CasaOS no Ubuntu Server, primeiro acesso ao painel |
 | 2 | [02-usuarios-e-permissoes.md](casaos/02-usuarios-e-permissoes.md) | Conta do painel, usuários Linux, grupos e permissões por pasta |
-| 3 | [03-pastas-rede-e-mobile.md](casaos/03-pastas-rede-e-mobile.md) | Pastas compartilhadas, Samba, Mac, Windows, Android, iOS, transferência remota |
+| 3 | [03-pastas-rede-e-mobile.md](casaos/03-pastas-rede-e-mobile.md) | FILES (criar pasta + Share Samba), proteção com senha, Mac, Windows, Android, iOS |
 | 4 | [04-apps-recomendados.md](casaos/04-apps-recomendados.md) | Apps essenciais na App Store e instalação customizada |
 | 5 | [05-acesso-sem-ip-fixo.md](casaos/05-acesso-sem-ip-fixo.md) | Acesso sem digitar IP após reboot (mDNS, IP estático, Tailscale) |
 | 6 | [06-acesso-pela-internet.md](casaos/06-acesso-pela-internet.md) | CasaOS e pastas de qualquer lugar (VPN, HTTPS, apps mobile) |
@@ -83,15 +83,11 @@ flowchart TD
 
 ## Estrutura de pastas sugerida
 
-```
-/srv/casaos/
-├── compartilhado/    # Arquivos da família
-├── fotos/            # Exemplo: segundo compartilhamento
-├── convidado/        # Exemplo: acesso restrito
-└── privado/          # Apenas administrador
-```
+**Arquivos pelo FILES (padrão CasaOS):** pastas em `/DATA/` — ex.: `/DATA/compartilhado`, criadas e compartilhadas pelo app FILES.
 
-Detalhes em [casaos/03-pastas-rede-e-mobile.md](casaos/03-pastas-rede-e-mobile.md).
+**Apps Docker (opcional):** volumes em `/srv/casaos/` — ver [04-apps-recomendados.md](casaos/04-apps-recomendados.md).
+
+Detalhes de compartilhamento na rede em [casaos/03-pastas-rede-e-mobile.md](casaos/03-pastas-rede-e-mobile.md).
 
 ---
 

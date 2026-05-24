@@ -135,10 +135,12 @@ Deve retornar **Permission denied** se o convidado não pertence ao grupo `famil
 
 **Problema que resolve:** o Windows, Mac e apps móveis usam o protocolo **SMB** para “pastas de rede”. O Samba exige uma senha de rede ligada ao usuário Linux — a senha do Ubuntu **não** é ativada automaticamente para SMB.
 
-**Fluxo:** instalar o serviço Samba → registrar senha por usuário → (depois) definir compartilhamentos no `smb.conf` no guia de pastas.
+**Fluxo:** o CasaOS costuma instalar Samba junto com o painel. Criar o compartilhamento pelo app **FILES** (ver [03-pastas-rede-e-mobile.md](03-pastas-rede-e-mobile.md)) → registrar senha por usuário com `smbpasswd` → se precisar exigir login, editar `/etc/samba/smb.casa.conf` (`guest ok = no`, `valid users`).
 
 ```bash
+# Só se o comando smbpasswd não existir:
 sudo apt install -y samba
+
 sudo smbpasswd -a familia
 sudo smbpasswd -a convidado
 ```
