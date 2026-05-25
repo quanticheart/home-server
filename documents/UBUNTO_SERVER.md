@@ -87,19 +87,16 @@ Detalhes em [04-pastas-e-servicos.md](ubuntu/04-pastas-e-servicos.md).
 
 ## Fluxo recomendado
 
-```mermaid
-flowchart TD
-  A[Instalar Ubuntu Server] --> B[Acessar via SSH]
-  B --> C{Discos corretos?}
-  C -->|Não| D[Redimensionar LVM]
-  C -->|Sim| E[Criar pastas em /srv]
-  D --> E
-  E --> F[Configurar serviços]
-  F --> G[Criar usuários e permissões]
-  G --> H{Acesso externo?}
-  H -->|VPN| I[Tailscale ou WireGuard]
-  H -->|Internet direta| J[Port forward + DDNS]
-```
+| Ordem | Guia | Etapa |
+|-------|------|--------|
+| 1 | [01-instalacao.md](ubuntu/01-instalacao.md) | Instalar Ubuntu Server |
+| 2 | [02-acesso-remoto.md](ubuntu/02-acesso-remoto.md) | SSH (Mac / Windows) |
+| 3 | [03-armazenamento-disco.md](ubuntu/03-armazenamento-disco.md) | Discos e LVM (se necessário) |
+| 4 | [04-pastas-e-servicos.md](ubuntu/04-pastas-e-servicos.md) | `/srv` e serviços |
+| 5 | [05-usuarios-e-permissoes.md](ubuntu/05-usuarios-e-permissoes.md) | Usuários e permissões |
+| 6 | [06-servidor-na-internet.md](ubuntu/06-servidor-na-internet.md) | VPN ou internet (DDNS) |
+
+Fluxo interativo: canvas **home-server-hub** no Cursor (ver [README.md](../README.md)).
 
 ---
 

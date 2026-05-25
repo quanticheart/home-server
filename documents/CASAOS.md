@@ -69,15 +69,17 @@ Os arquivos abaixo ficam em **`documents/casaos/`** — documentação **nova e 
 
 ## Fluxo recomendado
 
-```mermaid
-flowchart TD
-  A[Ubuntu Server instalado] --> B[01 Instalar CasaOS]
-  B --> C[02 Usuarios e permissoes]
-  C --> D[03 Pastas e rede mobile]
-  D --> E[04 Apps recomendados]
-  E --> F[05 Acesso sem IP fixo]
-  F --> G[06 Acesso pela internet]
-```
+| Ordem | Guia | Etapa |
+|-------|------|--------|
+| — | Ubuntu instalado | Pré-requisito ([UBUNTO_SERVER.md](UBUNTO_SERVER.md)) |
+| 1 | [01-instalacao.md](casaos/01-instalacao.md) | Instalar CasaOS |
+| 2 | [02-usuarios-e-permissoes.md](casaos/02-usuarios-e-permissoes.md) | Usuários e permissões |
+| 3 | [03-pastas-rede-e-mobile.md](casaos/03-pastas-rede-e-mobile.md) | FILES, Samba, dispositivos |
+| 4 | [04-apps-recomendados.md](casaos/04-apps-recomendados.md) | Apps na App Store |
+| 5 | [05-acesso-sem-ip-fixo.md](casaos/05-acesso-sem-ip-fixo.md) | mDNS / IP fixo / Tailscale |
+| 6 | [06-acesso-pela-internet.md](casaos/06-acesso-pela-internet.md) | Acesso remoto |
+
+Fluxo interativo: canvas **home-server-hub** no Cursor (ver [README.md](../README.md)).
 
 ---
 

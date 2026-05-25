@@ -21,16 +21,7 @@ Um NAS permanece ligado ao roteador (em geral 24 horas por dia). Os clientes ace
 | **SFTP** | Transferência segura via SSH |
 | **Aplicações web** | Nextcloud, interfaces de painel (ex.: [CasaOS](documents/CASAOS.md)) |
 
-```mermaid
-flowchart LR
-  clients[PC Mac Celular]
-  router[Roteador LAN]
-  server[Servidor Ubuntu]
-  disks[Discos HD SSD]
-  clients -->|SMB SFTP HTTPS| router
-  router --> server
-  server --> disks
-```
+**Fluxo na rede:** clientes (PC, Mac, celular) → roteador → servidor Ubuntu → discos. Protocolos típicos: SMB, SFTP, HTTPS.
 
 ### NAS dedicado vs servidor caseiro
 
@@ -62,6 +53,16 @@ Estes guias descrevem a montagem de um **servidor Ubuntu completo**, não apenas
 | **DDNS** | Dynamic DNS — nome de domínio que acompanha IP dinâmico |
 | **VPN** | Rede privada virtual — acesso remoto criptografado |
 | **UFW** | Uncomplicated Firewall — firewall simplificado do Ubuntu |
+
+---
+
+## Dashboard de navegação (Cursor)
+
+No Cursor, abra o canvas **`home-server-hub`** ao lado do chat — arquivo [`canvases/home-server-hub.canvas.tsx`](canvases/home-server-hub.canvas.tsx). Ele substitui diagramas Mermaid genéricos por um hub interativo:
+
+- trilhas **Ubuntu** e **CasaOS** com fluxo visual (DAG)
+- lista de guias com links para o GitHub
+- arquitetura LAN, protocolos e “por onde começar”
 
 ---
 

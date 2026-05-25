@@ -267,16 +267,11 @@ Alternativas com apps dedicados — ver [04-apps-recomendados.md](04-apps-recome
 
 ## 11. Resumo — qual caminho seguir?
 
-```mermaid
-flowchart TD
-  start[Preciso de pasta na rede] --> files[Criar pasta no FILES]
-  files --> share[Share via Samba no menu da pasta]
-  share --> test[Testar no Mac ou Windows]
-  test --> secure{Quer senha?}
-  secure -->|Sim| smbpasswd[smbpasswd + editar smb.casa.conf]
-  secure -->|Nao| mobile[Conectar Android e iOS]
-  smbpasswd --> mobile
-```
+1. Criar pasta no **FILES** (`/DATA`)
+2. Menu da pasta → **Share via Samba**
+3. Testar no Mac ou Windows (`smb://IP/nome`)
+4. **Quer senha?** → `smbpasswd` + editar `smb.casa.conf` (seção 3)
+5. Conectar **Android** e **iOS** (seções 9 e 10)
 
 | Etapa | CasaOS FILES | Terminal Ubuntu |
 |-------|--------------|-----------------|
